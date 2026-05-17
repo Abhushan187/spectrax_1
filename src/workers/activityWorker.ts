@@ -23,7 +23,7 @@ async function loadModel() {
 }
 
 self.onmessage = async (event) => {
-  const { frames, image, labels, type, frameId } = event.data;
+  const { image, labels, type } = event.data;
 
   if (type === 'init') {
     await loadModel();

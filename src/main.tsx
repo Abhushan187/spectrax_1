@@ -1,19 +1,16 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.tsx'
-import { ThemeProvider } from './context/ThemeContext.tsx'
-import './index.css'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
+import { ThemeProvider } from "./context/ThemeContext.tsx";
+import { AuthProvider } from "./context/AuthContext.tsx";
+import "./index.css";
 
-import { registerSW } from 'virtual:pwa-register'
-
-registerSW({
-  immediate: true,
-})
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
+ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ThemeProvider>
-      <App />
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </AuthProvider>
   </React.StrictMode>,
-)
+);
