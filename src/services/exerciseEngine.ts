@@ -690,6 +690,10 @@ export class ExerciseEngine {
       wristSupinationScore,
     };
   }
+
+  reset(): void {
+    this.kinematicEngine.reset();
+  }
 }
 
 export const exerciseEngine = new ExerciseEngine();
