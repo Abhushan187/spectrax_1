@@ -15,6 +15,14 @@ export interface VBTMetrics {
   projectedVelocity: number; // linear regression projection for next rep
 }
 
+export interface TUTMetrics {
+  eccentricMs: number;
+  concentricMs: number;
+  isometricMs: number;
+  tempoRatio: string; // e.g. "3-0-1-0"
+  totalRepMs: number;
+}
+
 export class KinematicEngine {
   private previousY: number = 0;
   private previousTime: number = 0;
@@ -48,6 +56,14 @@ export class KinematicEngine {
   // TUT tracking
   private repTUT: number = 0;
   private lastTUTTimestamp: number = 0;
+  // ── TUT Tracking ─────────────────────────────────────────────
+  private phaseStartTime: number = 0;
+  private currentRepTUT: { eccentric: number; concentric: number; isometric: number } = {
+    eccentric: 0,
+    concentric: 0,
+    isometric: 0,
+  };
+  private lastRepTUT: TUTMetrics | null = null;
 
   public update(
     landmarks: NormalizedLandmark[], 
@@ -76,6 +92,7 @@ export class KinematicEngine {
     if (this.previousTime === 0) {
       this.previousTime = timestamp;
       this.previousY = currentY;
+      this.phaseStartTime = timestamp;
       return this.getMetrics();
     }
     
@@ -128,6 +145,8 @@ export class KinematicEngine {
     // Wait, it depends on the exercise. For squats/pushups, concentric is going up (y decreases -> dy < 0, velocity negative).
     // Let's use absolute speed and phase direction.
     // Let's say if dy < -0.005, it's Concentric (moving up). If dy > 0.005, it's Eccentric.
+    // Determine Phase based on Y deltas
+    const prevPhase = this.currentPhase;
     
     if (this.emaVelocity < -0.05) {
         this.currentPhase = "concentric";
@@ -148,6 +167,13 @@ export class KinematicEngine {
       this.lastTUTTimestamp = timestamp;
     } else {
       this.lastTUTTimestamp = 0;
+    }
+
+    // ── TUT: Accumulate time for the phase we just left ────────
+    if (prevPhase !== this.currentPhase) {
+      const phaseDuration = timestamp - this.phaseStartTime;
+      this.currentRepTUT[prevPhase] += phaseDuration;
+      this.phaseStartTime = timestamp;
     }
 
     this.previousTime = timestamp;
@@ -199,6 +225,33 @@ export class KinematicEngine {
       this.primaryJointTrajectory = [];
       this.repTUT = 0;
       this.lastTUTTimestamp = 0;
+
+      // ── TUT: Finalize current rep's phase timing ───────────────
+      // Add time for the current active phase since last transition
+      const now = performance.now();
+      const activePhaseDuration = now - this.phaseStartTime;
+      this.currentRepTUT[this.currentPhase] += activePhaseDuration;
+
+      const total = this.currentRepTUT.eccentric + this.currentRepTUT.concentric + this.currentRepTUT.isometric;
+      const eccSec = Math.round(this.currentRepTUT.eccentric / 1000);
+      const isoSec = Math.round(this.currentRepTUT.isometric / 1000);
+      const conSec = Math.round(this.currentRepTUT.concentric / 1000);
+
+      this.lastRepTUT = {
+        eccentricMs: this.currentRepTUT.eccentric,
+        concentricMs: this.currentRepTUT.concentric,
+        isometricMs: this.currentRepTUT.isometric,
+        tempoRatio: `${eccSec}-${isoSec}-${conSec}-0`,
+        totalRepMs: total,
+      };
+
+      // Reset for next rep
+      this.currentRepTUT = { eccentric: 0, concentric: 0, isometric: 0 };
+      this.phaseStartTime = now;
+  }
+
+  public getLastRepTUT(): TUTMetrics | null {
+    return this.lastRepTUT;
   }
 
   public reset(): void {
@@ -219,6 +272,9 @@ export class KinematicEngine {
     this.previousRightY = {};
     this.repTUT = 0;
     this.lastTUTTimestamp = 0;
+    this.phaseStartTime = 0;
+    this.currentRepTUT = { eccentric: 0, concentric: 0, isometric: 0 };
+    this.lastRepTUT = null;
   }
 
   public getMetrics(): VBTMetrics {
